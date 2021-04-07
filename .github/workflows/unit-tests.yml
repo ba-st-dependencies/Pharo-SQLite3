@@ -1,4 +1,4 @@
-name: GLORP Integration Tests
+name: Unit Tests
 
 on: [push,pull_request]
 
@@ -6,7 +6,6 @@ jobs:
    build:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         smalltalk: [ Pharo64-7.0, Pharo64-8.0, Pharo64-9.0 ]
     name: ${{ matrix.smalltalk }}
@@ -18,11 +17,11 @@ jobs:
         uses: hpi-swa/setup-smalltalkCI@v1
         with:
           smalltalk-image: ${{ matrix.smalltalk }}
-      - name: Load Image and Run Integration Tests
-        run: smalltalkci -s ${{ matrix.smalltalk }} .GLORP.ston
-        timeout-minutes: 15
+      - name: Load Image and Run Tests
+        run: smalltalkci -s ${{ matrix.smalltalk }} .unit.ston
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        timeout-minutes: 15
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v1
         with:

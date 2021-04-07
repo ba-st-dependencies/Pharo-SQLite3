@@ -33,6 +33,16 @@ SQLite3PreparedStatement >> at: aColumn putByteArray: anObject [
 ]
 
 { #category : #bindings }
+SQLite3PreparedStatement >> at: aColumn putDate: aDate [
+
+	| string |
+
+	string := SQLite3DateTimeString
+		streamContents: [ :stream | BasicDatePrinter new printDate: aDate format: #() on: stream ].
+	^ self library with: handle at: aColumn putString: string
+]
+
+{ #category : #bindings }
 SQLite3PreparedStatement >> at: aColumn putDateTime: aDateTime [
 	| s |
 	
@@ -71,6 +81,15 @@ SQLite3PreparedStatement >> at: aColumn putObject: anObject [
 { #category : #bindings }
 SQLite3PreparedStatement >> at: aColumn putString: aString [
 	^ self library with: handle at: aColumn putString: aString
+]
+
+{ #category : #bindings }
+SQLite3PreparedStatement >> at: aColumn putTime: aTime [
+
+	| string |
+
+	string := SQLite3DateTimeString streamContents: [ :stream | aTime printOn: stream ].
+	^ self library with: handle at: aColumn putString: string
 ]
 
 { #category : #public }
@@ -190,27 +209,33 @@ SQLite3PreparedStatement >> connection: anObject [
 { #category : #bindings }
 SQLite3PreparedStatement >> dataTypeForObject: anObject [
 
-	anObject ifNil: [ ^#at:putNil: ].
+	anObject ifNil: [ ^ #at:putNil: ].
 
-	(anObject isKindOf: Boolean)
-		ifTrue: [ ^#at:putBoolean: ].
+	( anObject isKindOf: Boolean )
+		ifTrue: [ ^ #at:putBoolean: ].
 
-	(anObject isKindOf: Integer)
-		ifTrue: [ ^#at:putInteger: ].
-		
-	(self isFloatLike: anObject)
-		ifTrue: [ ^#at:putFloat: ].
-		
-	(anObject isKindOf: String)
-		ifTrue: [ ^#at:putString: ].
-		
-	(anObject isKindOf: ByteArray)
-		ifTrue: [ ^#at:putByteArray: ].
-		
-	(self isDateAndTimeLike: anObject)
-		ifTrue: [ ^#at:putDateTime: ].
-		
-	^ #at:putObject: 
+	( anObject isKindOf: Integer )
+		ifTrue: [ ^ #at:putInteger: ].
+
+	( self isFloatLike: anObject )
+		ifTrue: [ ^ #at:putFloat: ].
+
+	( anObject isKindOf: String )
+		ifTrue: [ ^ #at:putString: ].
+
+	( anObject isKindOf: ByteArray )
+		ifTrue: [ ^ #at:putByteArray: ].
+
+	( anObject isKindOf: DateAndTime )
+		ifTrue: [ ^ #at:putDateTime: ].
+
+	( anObject isKindOf: Time )
+		ifTrue: [ ^ #at:putTime: ].
+
+	( anObject isKindOf: Date )
+		ifTrue: [ ^ #at:putDate: ].
+
+	^ #at:putObject:
 ]
 
 { #category : #'public - accessing' }
@@ -219,8 +244,15 @@ SQLite3PreparedStatement >> dataValuesAvailable [
 ]
 
 { #category : #fetching }
-SQLite3PreparedStatement >> dateTimeAt: aColumn [	
-	^ DateAndTime fromString: (self library stringFrom: handle at: aColumn)
+SQLite3PreparedStatement >> dateAt: aColumn [
+
+	^ Date fromString: ( self stringAt: aColumn )
+]
+
+{ #category : #fetching }
+SQLite3PreparedStatement >> dateTimeAt: aColumn [
+
+	^ DateAndTime fromString: ( self stringAt: aColumn )
 ]
 
 { #category : #'private - accessing' }
@@ -242,12 +274,16 @@ SQLite3PreparedStatement >> execute: bindings [
 
 { #category : #initialization }
 SQLite3PreparedStatement >> finalize [
-	| result |
+	"Finalize the statement as required by the SQLite3 API. As per the API, the user is expected to finalize a statement after use.
 	
-	result := connection finalize: self sqlText.
-	"Let FFIExternalResourceManager take care."
-	"SQLite3Library current apiFinalize: handle."
-	handle := nil.
+	Since executing a new statement without having finalized the previous one might cause SQLITE_BUSY errors, we can't rely on the garbage collector to execute the finalization, or we'll be exposed to non-deterministic behaviour."
+
+	handle
+		ifNotNil:
+			[ "Remove the statement object from its finalization registry. This should happen before the actual finalization to avoid finalizing the statement twice, which might result in 'undefined and undesirable behavior such as segfaults and heap corruption' as per the SQLite3 API"
+			handle manualRelease.
+			connection finalize: handle.
+			handle := nil ].
 	^ 0
 ]
 
@@ -273,15 +309,6 @@ SQLite3PreparedStatement >> initialize [
 { #category : #fetching }
 SQLite3PreparedStatement >> integerAt: aColumn [ 
 	^self library integerFrom: handle at: aColumn
-]
-
-{ #category : #'private - testing' }
-SQLite3PreparedStatement >> isDateAndTimeLike: anObject [
-
-	^ ((anObject isKindOf: DateAndTime) or: [ anObject isKindOf: Date ])
-			or: [ anObject isKindOf: Time ]
-		
-
 ]
 
 { #category : #'private - testing' }
@@ -348,7 +375,9 @@ SQLite3PreparedStatement >> stepOk: aValue [
 	(aValue = SQLITE_BUSY)
 		ifTrue: [ connection signal: SQLite3Busy with: aValue ].
 	(aValue = SQLITE_MISUSE)
-		ifTrue: [ connection signal: SQLite3Misuse with: aValue ].				
+		ifTrue: [ connection signal: SQLite3Misuse with: aValue ].
+	(aValue = SQLITE_CONSTRAINT)
+		ifTrue:  [ connection signal: SQLite3ConstraintViolation with: aValue].				
 
 	"Catch any error not specifically handled above."
 	connection signal: SQLite3AbstractError with: aValue
@@ -358,6 +387,18 @@ SQLite3PreparedStatement >> stepOk: aValue [
 { #category : #fetching }
 SQLite3PreparedStatement >> stringAt: aColumn [	 
 	^ self library stringFrom: handle at: aColumn
+]
+
+{ #category : #fetching }
+SQLite3PreparedStatement >> timeAt: aColumn [
+
+	^ Time fromString: ( self stringAt: aColumn )
+]
+
+{ #category : #fetching }
+SQLite3PreparedStatement >> timestampAt: aColumn [
+
+	^ DateAndTime fromString: ( self stringAt: aColumn )
 ]
 
 { #category : #fetching }
