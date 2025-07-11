@@ -15,7 +15,7 @@ Class {
 		'isOpen',
 		'handle'
 	],
-	#category : #'SQLite3-Core-Connections'
+	#category : #'SQLite3-Core-Utilities'
 }
 
 { #category : #creating }
@@ -48,15 +48,16 @@ SQLite3Backup >> dstName: anObject [
 ]
 
 { #category : #finalization }
-SQLite3Backup >> finalize [ 
+SQLite3Backup >> finalize [
 	self finish
 ]
 
 { #category : #initialization }
-SQLite3Backup >> finish [ 
-	handle 
+SQLite3Backup >> finish [
+	handle
 		ifNotNil: [
 			library apiBackupFinish: handle.
+			handle beNull.
 			handle := nil]
 ]
 
@@ -76,7 +77,7 @@ SQLite3Backup >> initialize [
 	isOpen := false.
 	library := SQLite3Library current.
 	handle := SQLite3DatabaseExternalObject new.
-	handle autoRelease.
+	handle autoRelease
 ]
 
 { #category : #accessing }
@@ -85,7 +86,7 @@ SQLite3Backup >> isOpen [
 ]
 
 { #category : #accessing }
-SQLite3Backup >> open [ 
+SQLite3Backup >> open [
 	handle := (library backupTo: dstConnection named: dstName from: srcConnection named: srcName).
 	isOpen := true
 ]
@@ -111,7 +112,7 @@ SQLite3Backup >> srcName: anObject [
 ]
 
 { #category : #accessing }
-SQLite3Backup >> step [ 
+SQLite3Backup >> step [
 	"Passing negative number means run to completion"
 	self step: -1
 ]
